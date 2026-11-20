@@ -70,9 +70,17 @@ class NotesPage extends StatefulWidget {
   State<NotesPage> createState() => _NotesPageState();
 }
 
+class _Note {
+  _Note(this.text) : key = UniqueKey();
+
+  final Key key;
+  String text;
+  bool isImportant = false;
+}
+
 class _NotesPageState extends State<NotesPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<String> _notes = [];
+  final List<_Note> _notes = [];
   int? _editingIndex;
 
   @override
@@ -93,9 +101,9 @@ class _NotesPageState extends State<NotesPage> {
     setState(() {
       final editingIndex = _editingIndex;
       if (editingIndex == null) {
-        _notes.insert(0, text);
+        _notes.insert(0, _Note(text));
       } else {
-        _notes[editingIndex] = text;
+        _notes[editingIndex].text = text;
       }
       _editingIndex = null;
       _controller.clear();
@@ -106,7 +114,36 @@ class _NotesPageState extends State<NotesPage> {
   void _editNote(int index) {
     setState(() {
       _editingIndex = index;
-      _controller.text = _notes[index];
+      _controller.text = _notes[index].text;
+    });
+  }
+
+  void _showNote(int index) {
+    final text = _notes[index].text;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Заметка'),
+        content: SingleChildScrollView(child: Text(text)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleImportant(int index) {
+    setState(() {
+      _notes[index].isImportant = !_notes[index].isImportant;
+    });
+  }
+
+  void _restoreNote(int index) {
+    setState(() {
+      _notes[index].isImportant = false;
     });
   }
 
@@ -200,46 +237,79 @@ class _NotesPageState extends State<NotesPage> {
                         padding: const EdgeInsets.only(bottom: 8),
                         itemCount: _notes.length,
                         itemBuilder: (context, index) {
-                          return Container(
-                            key: ValueKey('note-$index'),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.black26),
+                          final note = _notes[index];
+                          return Dismissible(
+                            key: note.key,
+                            direction: note.isImportant
+                                ? DismissDirection.horizontal
+                                : DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 20),
+                              color: Colors.green.shade100,
+                              child: const Icon(Icons.star_outline),
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      child: Text(_notes[index]),
-                                    ),
+                            secondaryBackground: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              color: Colors.red.shade100,
+                              child: const Icon(Icons.delete_outline),
+                            ),
+                            confirmDismiss: (direction) async {
+                              if (direction == DismissDirection.startToEnd) {
+                                _restoreNote(index);
+                                return false;
+                              }
+                              return true;
+                            },
+                            onDismissed: (direction) {
+                              if (direction == DismissDirection.endToStart) {
+                                _deleteNote(index);
+                              }
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black26),
+                              ),
+                              child: GestureDetector(
+                                onTap: () => _showNote(index),
+                                onDoubleTap: () => _toggleImportant(index),
+                                onLongPress: () => _editNote(index),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    4,
+                                    8,
                                   ),
-                                  IconButton(
-                                    tooltip: 'Редактировать заметку',
-                                    onPressed: () => _editNote(index),
-                                    style: IconButton.styleFrom(
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.zero,
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (note.isImportant)
+                                        const Padding(
+                                          padding: EdgeInsets.only(
+                                            top: 12,
+                                            right: 8,
+                                          ),
+                                          child: Icon(Icons.star),
+                                        ),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          child: Text(
+                                            note.text,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    ],
                                   ),
-                                  IconButton(
-                                    tooltip: 'Удалить заметку',
-                                    onPressed: () => _deleteNote(index),
-                                    style: IconButton.styleFrom(
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.zero,
-                                      ),
-                                    ),
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           );
